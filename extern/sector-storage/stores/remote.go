@@ -134,6 +134,23 @@ func (r *Remote) AcquireSector(ctx context.Context, s abi.SectorID, spt abi.Regi
 		dest := PathByType(apaths, fileType)
 		storageID := PathByType(ids, fileType)
 
+		if os.Getenv("P2_SKIP_FETCH") != "" {
+			if _, err := os.Stat(dest); os.IsNotExist(err) {
+				log.Warnf("sector %v is not exist %s failed: %+v", s, storageID, err)
+				continue
+			}
+
+			SetPathByType(&paths, fileType, dest)
+			SetPathByType(&stores, fileType, storageID)
+
+			if err := r.index.StorageDeclareSector(ctx, ID(storageID), s, fileType, op == AcquireMove); err != nil {
+				log.Warnf("declaring sector %v in %s failed: %+v", s, storageID, err)
+				continue
+			}
+
+			continue
+		}
+
 		url, err := r.acquireFromRemote(ctx, s, fileType, dest)
 		if err != nil {
 			return SectorPaths{}, SectorPaths{}, err

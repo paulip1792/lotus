@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"strconv"
 	"time"
@@ -283,7 +284,9 @@ func (sm *StorageMinerAPI) WorkerConnect(ctx context.Context, url string) error 
 
 	log.Infof("Connected to a remote worker at %s", url)
 
-	return sm.StorageMgr.AddWorker(ctx, w)
+	u, err := neturl.Parse(url)
+
+	return sm.StorageMgr.AddWorker(ctx, w, u.Host)
 }
 
 func (sm *StorageMinerAPI) SealingSchedDiag(ctx context.Context) (interface{}, error) {

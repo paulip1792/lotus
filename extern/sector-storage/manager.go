@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	neturl "net/url"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/fsutil"
 
@@ -137,10 +138,15 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, cfg
 		localTasks = append(localTasks, sealtasks.TTUnseal)
 	}
 
+	u, err := neturl.Parse(urls[0])
+	if err != nil {
+		return nil, xerrors.Errorf("parse url: %w", err)
+	}
+
 	err = m.AddWorker(ctx, NewLocalWorker(WorkerConfig{
 		SealProof: cfg.SealProofType,
 		TaskTypes: localTasks,
-	}, stor, lstor, si))
+	}, stor, lstor, si), u.Host)
 	if err != nil {
 		return nil, xerrors.Errorf("adding local worker: %w", err)
 	}
@@ -166,11 +172,13 @@ func (m *Manager) AddLocalStorage(ctx context.Context, path string) error {
 	return nil
 }
 
-func (m *Manager) AddWorker(ctx context.Context, w Worker) error {
+func (m *Manager) AddWorker(ctx context.Context, w Worker, host string) error {
 	info, err := w.Info(ctx)
 	if err != nil {
 		return xerrors.Errorf("getting worker info: %w", err)
 	}
+
+	info.Host = host
 
 	m.sched.newWorkers <- &workerHandle{
 		w: w,
@@ -347,7 +355,7 @@ func (m *Manager) SealPreCommit2(ctx context.Context, sector abi.SectorID, phase
 		return storage.SectorCids{}, xerrors.Errorf("acquiring sector lock: %w", err)
 	}
 
-	selector := newExistingSelector(m.index, sector, stores.FTCache|stores.FTSealed, true)
+	selector := newEqualHostSelector(m.index, sector, stores.FTCache|stores.FTSealed)
 
 	err = m.sched.Schedule(ctx, sector, sealtasks.TTPreCommit2, selector, schedFetch(sector, stores.FTCache|stores.FTSealed, stores.PathSealing, stores.AcquireMove), func(ctx context.Context, w Worker) error {
 		p, err := w.SealPreCommit2(ctx, sector, phase1Out)

@@ -3,12 +3,14 @@ package storiface
 import (
 	"time"
 
-	"github.com/filecoin-project/lotus/extern/sector-storage/sealtasks"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+
+	"github.com/filecoin-project/lotus/extern/sector-storage/sealtasks"
 )
 
 type WorkerInfo struct {
 	Hostname string
+	Host     string // host or host:port
 
 	Resources WorkerResources
 }

@@ -3,6 +3,7 @@ package sectorstorage
 import (
 	"context"
 	"net/url"
+	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -12,21 +13,21 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 )
 
-type equalHostSelector struct {
+type equalIPSelector struct {
 	index      stores.SectorIndex
 	sector     abi.SectorID
 	alloc      stores.SectorFileType
 }
 
-func newEqualHostSelector(index stores.SectorIndex, sector abi.SectorID, alloc stores.SectorFileType) *equalHostSelector {
-	return &equalHostSelector{
+func newEqualIPSelector(index stores.SectorIndex, sector abi.SectorID, alloc stores.SectorFileType) *equalIPSelector {
+	return &equalIPSelector{
 		index:      index,
 		sector:     sector,
 		alloc:      alloc,
 	}
 }
 
-func (s *equalHostSelector) Ok(ctx context.Context, task sealtasks.TaskType, spt abi.RegisteredSealProof, whnd *workerHandle) (bool, error) {
+func (s *equalIPSelector) Ok(ctx context.Context, task sealtasks.TaskType, spt abi.RegisteredSealProof, whnd *workerHandle) (bool, error) {
 	tasks, err := whnd.w.TaskTypes(ctx)
 	if err != nil {
 		return false, xerrors.Errorf("getting supported worker task types: %w", err)
@@ -35,7 +36,7 @@ func (s *equalHostSelector) Ok(ctx context.Context, task sealtasks.TaskType, spt
 		return false, nil
 	}
 
-	log.Infow("equalHostSelector.Ok", "workerHost", whnd.info.Host, "sectorNumber", s.sector.Number)
+	log.Infow("equalIPSelector.Ok", "workerHost", whnd.info.Host, "sectorNumber", s.sector.Number)
 	best, err := s.index.StorageFindSector(ctx, s.sector, s.alloc, spt, false)
 	if err != nil {
 		return false, xerrors.Errorf("finding best storage: %w", err)
@@ -49,7 +50,7 @@ func (s *equalHostSelector) Ok(ctx context.Context, task sealtasks.TaskType, spt
 				continue
 			}
 			log.Infow("matching", "sectorNumber", s.sector.Number, "workerHost", whnd.info.Host, "sectorStorageHost", u.Host)
-			if whnd.info.Host == u.Host {
+			if strings.Split(whnd.info.Host, ":")[0] == strings.Split(u.Host, ":")[0] {
 				return true, nil
 			}
 		}
@@ -58,8 +59,8 @@ func (s *equalHostSelector) Ok(ctx context.Context, task sealtasks.TaskType, spt
 	return false, nil
 }
 
-func (s *equalHostSelector) Cmp(ctx context.Context, task sealtasks.TaskType, a, b *workerHandle) (bool, error) {
+func (s *equalIPSelector) Cmp(_ context.Context, _ sealtasks.TaskType, a, b *workerHandle) (bool, error) {
 	return a.active.utilization(a.info.Resources) < b.active.utilization(b.info.Resources), nil
 }
 
-var _ WorkerSelector = &equalHostSelector{}
+var _ WorkerSelector = &equalIPSelector{}
